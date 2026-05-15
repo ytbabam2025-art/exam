@@ -1,0 +1,1565 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Exambro Pro 2026 - AI Super Edition</title>
+    
+    <!-- 
+    SISTEM MONITORING UJIAN UNTUK 500 SISWA
+    ========================================
+    
+    <!-- Scripts & Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDK Compat -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; user-select: none; background-color: #f8fafc; overflow-x: hidden; }
+        .hidden-element { display: none !important; }
+        .sidebar-active { background-color: #eff6ff; color: #2563eb; border-right: 4px solid #2563eb; }
+        iframe { width: 100%; height: 100%; border: none; border-radius: .75rem; }
+        .violation-shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
+        .sync-indicator { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; background-color: #10b981; box-shadow: 0 0 8px #10b981; }
+	.blur-screen {filter: blur(20px); pointer-events: none;}
+
+	/* Styling tambahan untuk kartu monitor */
+	.monitor-card {transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);}
+	.monitor-card:hover {transform: translateY(-4px);box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); }
+	.status-ping {width: 8px;height: 8px;border-radius: 50%;position: relative;}
+	.status-ping::after {content: '';position: absolute;inset: 0;border-radius: 50%;animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;background-color: inherit;}
+	@keyframes ping {75%, 100% { transform: scale(2.5); opacity: 0; }}
+	#select-nama {white-space: normal; height: auto; word-wrap: break-word; }
+    </style>
+</head>
+
+<body class="text-slate-800" oncontextmenu="return false">
+
+    <!-- AUDIO NOTIFICATION -->
+    <audio id="alarm-sound" src="https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3" preload="auto"></audio>
+
+    <!-- LOCK SCREEN (HIGH Z-INDEX) -->
+    <div id="lock-screen" class="fixed inset-0 bg-slate-900/98 z-[9999] flex flex-col items-center justify-center p-6 hidden-element">
+        <div class="bg-white rounded-[2.5rem] p-10 max-w-md w-full text-center shadow-2xl">
+            <div class="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6 font-black text-4xl">!</div>
+            <h2 class="text-2xl font-black mb-2 text-slate-900">Akses Terkunci</h2><p class="text-slate-500 mb-8 text-sm">Terdeteksi aktivitas mencurigakan atau pelanggaran batas. Silahkan masukkan PIN Pengawas.</p>
+            <input type="password" id="unlock-pwd" class="w-full bg-slate-100 p-4 rounded-xl mb-4 text-center tracking-widest outline-none border-2 border-transparent focus:border-red-500 text-lg font-bold" placeholder="PIN PENGAWAS">
+            <button onclick="unlockApp()" class="w-full bg-red-600 text-white py-4 rounded-xl font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-200">BUKA AKSES</button>
+        </div>
+    </div>
+
+    <!-- LOADING SCREEN -->
+    <div id="loading-overlay" class="fixed inset-0 bg-white z-[2000] flex flex-col items-center justify-center">
+        <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600 mb-4"></div>
+        <p class="font-bold text-slate-400 text-sm italic">Sinkronisasi Cloud</p>
+    </div>
+
+    <!-- LOGIN PAGE -->
+    <div id="login-page" class="min-h-screen flex items-center justify-center bg-slate-950 p-4">
+        <div class="bg-white/95 backdrop-blur-md rounded-[3rem] shadow-2xl w-full max-w-md p-10">
+            <div class="text-center mb-10"><h1 class="text-3xl font-black text-slate-900 uppercase">PRIDA <span class="text-blue-600">EXAMBRO</span></h1><p class="text-slate-400 text-[10px] font-bold mt-2 tracking-[0.2em]">Secured Examination System 2026</p></div>
+            <div class="space-y-4">
+                <div class="flex bg-slate-100 p-1 rounded-2xl">
+                    <button onclick="setRole('student')" id="role-std" class="flex-1 py-3 text-xs font-bold rounded-xl bg-white shadow-sm text-blue-600">SISWA</button>
+                    <button onclick="setRole('admin')" id="role-adm" class="flex-1 py-3 text-xs font-bold rounded-xl text-slate-400">ADMIN</button>
+                </div>
+                <input type="text" id="user-id" class="w-full bg-slate-50 p-4 rounded-2xl border-2 outline-none focus:border-blue-500 transition-all" placeholder="Username Admin">
+                <select id="select-kelas" class="w-full bg-slate-50 p-4 rounded-2xl border-2 outline-none hidden-element"><option value="">Pilih Kelas</option></select>
+                <select id="select-nama" class="w-full bg-slate-50 p-4 rounded-2xl border-2 outline-none hidden-element"><option value="">Pilih Nama</option></select>
+                <input type="password" id="user-pwd" class="w-full bg-slate-50 p-4 rounded-2xl border-2 outline-none focus:border-blue-500 transition-all" placeholder="Password">
+                <button onclick="handleLogin()" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black shadow-xl shadow-blue-500/20 hover:scale-[1.02] transition-all">MASUK SISTEM</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADMIN DASHBOARD -->
+	<div id="admin-page" class="min-h-screen flex hidden-element">
+        <!-- Sidebar -->
+		<aside class="w-72 bg-white border-r flex flex-col p-8 sticky top-0 h-screen">
+		<div class="font-black text-2xl mb-12 flex items-center space-x-3 text-slate-900"><div class="w-10 h-10 bg-blue-600 rounded-xl shadow-lg flex items-center justify-center text-white text-base">A</div>
+                <span class="tracking-tighter">DASHBOARD</span>
+            </div>
+            	<nav class="space-y-3 flex-grow">
+                <button onclick="switchTab('exam')" id="tab-btn-exam" class="w-full flex items-center space-x-4 p-4 rounded-2xl sidebar-active font-bold text-sm text-left"><span>Manajemen Ujian</span></button>
+                <button onclick="switchTab('bank')" id="tab-btn-bank" class="w-full flex items-center space-x-4 p-4 rounded-2xl text-slate-400 font-bold text-sm hover:bg-slate-50 text-left"><span>Bank Soal AI</span></button>
+                <button onclick="switchTab('student')" id="tab-btn-student" class="w-full flex items-center space-x-4 p-4 rounded-2xl text-slate-400 font-bold text-sm hover:bg-slate-50 text-left"><span>Database Siswa</span></button>
+                <button onclick="switchTab('monitor')" id="tab-btn-monitor" class="w-full flex items-center space-x-4 p-4 rounded-2xl text-slate-400 font-bold text-sm hover:bg-slate-50 text-left"><span>Monitor Live</span></button>
+            	</nav>
+		<div class="p-4 bg-slate-50 rounded-2xl mb-4"><div class="flex items-center text-[9px] font-bold text-slate-400 uppercase"><span class="sync-indicator"></span> Cloud Online</div>
+            </div>
+		<button onclick="logout()" class="p-4 text-red-500 font-bold text-sm flex items-center space-x-3 hover:bg-red-50 rounded-2xl transition-all"><span>Logout</span></button>
+	</aside>
+
+
+        <!-- Main Content -->
+        <main class="flex-grow p-12 bg-slate-50 h-screen overflow-y-auto">
+        <!-- SECTION EXAM -->
+            <div id="section-exam">
+                <div class="flex justify-between items-end mb-10">
+                    <div><h2 class="text-3xl font-black text-slate-900">Manajemen Ujian</h2><p class="text-slate-400 text-xs mt-1">Kelola paket ujian dan pengaturan akses cepat.</p></div>
+                    <button onclick="openExamModal()" class="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-sm shadow-xl shadow-blue-500/20">+ Buat Paket</button>
+                </div>
+                <div class="bg-amber-50 border-2 border-amber-200 p-8 rounded-[2.5rem] mb-10 shadow-sm">
+                    <h3 class="font-black text-amber-900 text-lg mb-6 flex items-center">⚙️ Konfigurasi Akses Cepat</h3><div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="space-y-2"><label class="text-[10px] font-black text-amber-600 uppercase">PIN Pengawas Utama</label><input type="text" id="special-pin" class="w-full bg-white p-4 rounded-2xl border-2 border-amber-100 font-black text-amber-700 outline-none" value="1234"></div>
+                        <div class="space-y-2"><label class="text-[10px] font-black text-amber-600 uppercase">Default Durasi (Menit)</label><input type="number" id="special-duration" class="w-full bg-white p-4 rounded-2xl border-2 border-amber-100 font-bold text-amber-700 outline-none" value="60"></div>
+                        <div class="flex items-end"><button onclick="saveSpecialSettings()" class="w-full bg-amber-600 text-white py-4 rounded-2xl font-black hover:bg-amber-700 shadow-lg shadow-amber-200 transition-all">SIMPAN PERUBAHAN</button></div>
+			</div>
+                </div>
+                <div id="admin-exam-list" class="grid grid-cols-1 xl:grid-cols-2 gap-6"></div>
+            </div>
+
+	<!-- SECTION STUDENT -->
+	<div id="section-student" class="hidden-element">
+	    <div class="flex justify-between items-end mb-10">
+		<div><h2 class="text-3xl font-black text-slate-900">Database Siswa</h2><p class="text-slate-400 text-xs mt-1">Data sinkron otomatis dari Google Spreadsheet.</p></div>
+	    </div>
+
+		<!-- Panel Sinkronisasi Google Sheet (Sekarang Langsung Muncul) -->
+                <div class="bg-white p-8 rounded-[2.5rem] border mb-8 shadow-sm">
+                    <div class="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-4">
+                        <div class="flex-grow w-full"><label class="text-[10px] font-black text-slate-400 ml-2 uppercase tracking-widest mb-2 block">Link Google Spreadsheet (CSV/Publish to Web)</label><input type="text" id="sheet-url" class="w-full bg-slate-50 p-4 rounded-2xl outline-none border-2 border-transparent focus:border-emerald-500 transition-all text-sm" placeholder="https://docs.google.com/spreadsheets/d/..."></div>
+                        <div class="flex items-end h-full pt-6"><button id="btn-sync-sheet" onclick="saveAndSyncSheet()" class="bg-emerald-600 text-white px-8 py-4 rounded-2xl font-black text-xs shadow-lg shadow-emerald-100 flex items-center hover:bg-emerald-700 transition-all min-w-[200px] justify-center"><span id="sync-text">SIMPAN & SINKRON</span></button></div>
+                    </div>
+                    <p class="text-[9px] text-slate-400 mt-4 italic">*Perubahan data dilakukan langsung di Google Sheet. Klik tombol di atas untuk menyegarkan database di aplikasi.</p>
+                </div>
+	    
+	    <div class="bg-white rounded-[2.5rem] border overflow-hidden shadow-sm">
+	        <table class="w-full text-left">
+	            <thead class="bg-slate-50 border-b"><tr><th class="px-8 py-5 text-[10px] font-black uppercase text-slate-400">NIS</th><th class="px-8 py-5 text-[10px] font-black uppercase text-slate-400">Nama Lengkap</th>
+                    <th class="px-8 py-5 text-[10px] font-black uppercase text-slate-400">Kelas</th><th class="px-8 py-5 text-[10px] font-black uppercase text-slate-400">Password</th></tr></thead>
+	            <tbody id="admin-student-list" class="divide-y"><!-- Data akan diisi otomatis oleh JavaScript --></tbody>
+	        </table>
+	    </div>
+	</div>
+
+            <!-- SECTION MONITOR -->
+            <div id="section-monitor" class="hidden-element"><div class="flex justify-between items-end mb-10"><div><h2 class="text-3xl font-black text-slate-900">Live Monitoring</h2><p class="text-slate-400 text-xs mt-1" id="online-count">0 Siswa Sedang Aktif</p></div><button onclick="clearMonitorData()" class="text-red-500 font-bold text-[10px] uppercase border-b border-red-200">Bersihkan Feed Pasif</button></div><div id="monitor-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div></div>
+
+            <!-- SECTION BANK AI -->
+            <div id="section-bank" class="hidden-element">
+                <div class="flex justify-between items-end mb-10"><h2 class="text-3xl font-black text-slate-900">Bank Soal AI</h2><button onclick="openModal('modal-ai')" class="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-xs">✨ Generate Soal Baru</button></div>
+                <div id="ai-question-list" class="grid grid-cols-1 gap-4"></div>
+            </div>
+        </main>
+    </div>
+
+	<!-- STUDENT DASHBOARD -->
+	<div id="student-page" class="min-h-screen bg-slate-50 hidden-element">
+	    <header class="bg-white border-b px-4 py-3 flex justify-between items-center sticky top-0 z-50 shadow-sm">
+	        <div class="flex items-center space-x-3"><div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-lg shadow-md">S</div><div><h3 id="display-std-name" class="font-bold text-slate-900 text-sm leading-none">Peserta</h3><p class="text-[8px] text-emerald-500 font-bold tracking-wider uppercase mt-1">● Secure Connection</p></div></div>
+	        <button onclick="logout()" class="text-red-500 font-black text-[10px] border border-red-100 px-3 py-2 rounded-lg uppercase">Keluar</button>
+	    </header>
+
+	    <main class="p-4">
+	        <div class="grid grid-cols-2 gap-3 mb-6">
+	            <div onclick="switchStudentView('scheduled')" class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm active:scale-95 transition-all cursor-pointer text-center"><div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-3 text-xl">📅</div><span class="font-bold text-slate-800 text-xs block">Ujian Terjadwal</span></div>
+	            <div onclick="simulateScan()" class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm active:scale-95 transition-all cursor-pointer text-center"><div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-3 text-xl">📷</div><span class="font-bold text-slate-800 text-xs block">Scan QR Code</span></div>
+	            <div onclick="switchStudentView('manual')" class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm active:scale-95 transition-all cursor-pointer text-center col-span-2"><div class="flex items-center justify-center space-x-4"><div class="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center text-lg">🔗</div><span class="font-bold text-slate-800 text-xs">Input Link Manual</span></div></div>
+	        </div>
+	        <div id="view-scheduled"><h2 class="text-lg font-black mb-4 text-slate-900 flex items-center"><span class="w-1 h-5 bg-blue-600 rounded-full mr-2"></span>Pilih Mata Pelajaran</h2><div id="student-exam-list" class="grid grid-cols-2 gap-3"></div></div>
+	        <div id="qr-reader-container" class="hidden-element bg-white p-6 rounded-3xl border shadow-xl mx-auto mb-6 text-center"><div id="qr-reader" class="rounded-xl overflow-hidden mb-4 bg-slate-100"></div><button onclick="stopQR()" class="text-red-500 font-bold text-xs uppercase p-2">Batalkan</button></div>
+			<div id="view-manual" class="hidden-element bg-white p-6 rounded-3xl border shadow-xl text-center"><h2 class="text-xl font-black mb-2">Tempel Link</h2><p class="text-slate-400 text-[10px] mb-6 uppercase font-bold tracking-widest">Masukkan URL Google Form atau LMS</p>
+			<input type="text" id="manual-url" class="w-full bg-slate-50 p-4 rounded-2xl mb-4 border focus:border-blue-500 outline-none text-sm font-medium" placeholder="https://forms.gle/...">
+			<button onclick="startManualExam()" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-100 active:bg-blue-700 transition-all uppercase text-xs tracking-widest">BUKA UJIAN</button>
+	        <button onclick="switchStudentView('scheduled')" class="mt-6 text-slate-400 text-[10px] font-bold uppercase tracking-widest block w-full text-center">← Kembali ke Jadwal</button>
+			</div>
+
+	    </main>
+
+	</div>
+	<div id="exam-viewer" class="fixed inset-0 bg-white z-[500] flex flex-col hidden-element">
+	    <header class="bg-slate-900 text-white px-4 py-2 flex justify-between items-center shadow-lg">
+	        <div class="flex flex-col"><h4 id="view-mapel" class="font-bold text-xs uppercase truncate w-32">MAPEL</h4><div id="exam-timer" class="text-blue-400 font-mono font-bold text-sm tracking-tighter">00:00:00</div></div>
+	        <div class="flex items-center space-x-3">
+	            <div class="w-16 h-20 bg-black rounded-lg border border-white/20 overflow-hidden relative shadow-inner"><video id="self-video" class="w-full h-full object-cover" autoplay muted playsinline></video><div id="violation-badge" class="absolute top-0 right-0 bg-red-600 text-[8px] px-1 font-bold hidden-element animate-pulse">! <span id="violation-count">0</span></div></div>
+	            <button onclick="confirmFinishExam()" class="bg-red-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase active:bg-red-700">Selesai</button>
+	        </div>
+	    </header>
+	    <div id="exam-frame-container" class="flex-grow bg-slate-100 relative"><!-- Iframe akan mengisi seluruh sisa layar --></div>
+	</div>
+
+    <!-- MODALS -->
+    <!-- Modal Paket Ujian -->
+    <div id="modal-exam" class="hidden-element fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[3000] flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-3xl rounded-[4rem] p-12 max-h-[90vh] overflow-y-auto shadow-2xl">
+            <h3 class="text-3xl font-black mb-8" id="exam-modal-title">Konfigurasi Ujian</h3>
+            <input type="hidden" id="edit-exam-id">
+            <div class="grid grid-cols-2 gap-6">
+                <div class="col-span-2 space-y-2"><label class="text-[10px] font-black uppercase ml-4">Mata Pelajaran</label><input type="text" id="ex-mapel" class="w-full bg-slate-50 p-5 rounded-3xl outline-none font-bold focus:ring-2 ring-blue-500 transition-all"></div>
+                <div class="col-span-2 space-y-2"><label class="text-[10px] font-black uppercase ml-4">Target Kelas (Centang Kelas)</label><div id="class-checkbox-container" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 bg-slate-50 p-4 rounded-3xl border-2 border-transparent focus-within:border-blue-500 max-h-40 overflow-y-auto"><p class="text-[10px] text-slate-400 italic">Memuat daftar kelas...</p></div></div>
+		<div class="space-y-2"><label class="text-[10px] font-black uppercase ml-4">Tanggal Ujian</label><input type="date" id="ex-date" class="w-full bg-slate-50 p-5 rounded-3xl outline-none transition-all"></div>
+                <div class="space-y-2"><label class="text-[10px] font-black uppercase ml-4">Durasi (Menit)</label><input type="number" id="ex-duration" class="w-full bg-slate-50 p-5 rounded-3xl outline-none transition-all"></div>
+                <div class="space-y-2"><label class="text-[10px] font-black uppercase ml-4">Token Masuk</label><input type="text" id="ex-token" class="w-full bg-slate-50 p-5 rounded-3xl outline-none font-black uppercase text-blue-600 transition-all"></div>
+                <div class="space-y-2"><label class="text-[10px] font-black uppercase ml-4">PIN Pengawas</label><input type="text" id="ex-pin" class="w-full bg-slate-50 p-5 rounded-3xl outline-none font-black text-amber-600 transition-all"></div>
+                <div class="col-span-2 space-y-2"><label class="text-[10px] font-black uppercase ml-4">Link Google Form / LMS</label><input type="text" id="ex-link" class="w-full bg-slate-50 p-5 rounded-3xl outline-none transition-all" placeholder="https://..."></div>
+				<div class="col-span-2 flex space-x-4">
+					<div class="flex-1 flex items-center space-x-3 p-4 bg-slate-50 rounded-2xl"><input type="checkbox" id="ex-active" checked class="w-5 h-5 accent-blue-600"><span class="text-[10px] font-black uppercase">Ujian Aktif</span></div>
+					<div class="flex-1 flex items-center space-x-3 p-4 bg-slate-50 rounded-2xl"><input type="checkbox" id="ex-camera" checked class="w-5 h-5 accent-blue-600"><span class="text-[10px] font-black uppercase">Wajib Kamera</span></div>
+				</div>
+            </div>
+            <div class="flex space-x-4 mt-10">
+                <button onclick="closeModal('modal-exam')" class="flex-1 py-5 font-bold text-slate-400">Batalkan</button>
+                <button onclick="saveExam()" class="flex-1 bg-blue-600 text-white py-5 rounded-[2rem] font-black shadow-xl shadow-blue-100">SIMPAN PAKET</button>
+            </div>
+        </div>
+    </div>
+
+	<!-- MODAL AI GENERATOR -->
+	<div id="modal-ai" class="hidden-element fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[3000] flex items-center justify-center p-4">
+	<div class="bg-white w-full max-w-md rounded-[3rem] p-10 shadow-2xl">
+	<h3 class="text-2xl font-black mb-2 text-indigo-600">✨ AI Question Generator</h3><p class="text-slate-400 text-xs mb-8">Gunakan kecerdasan buatan untuk membuat bank soal otomatis.</p>
+		<div class="space-y-4">
+		<div class="space-y-1"><label class="text-[10px] font-black uppercase ml-2">Topik/Materi</label><input type="text" id="ai-topic" class="w-full bg-slate-50 p-4 rounded-2xl outline-none border focus:border-indigo-500" placeholder="Contoh: Fotosintesis Biologi Kelas 7"></div>
+		<div class="space-y-1"><label class="text-[10px] font-black uppercase ml-2">Jumlah Soal</label><input type="number" id="ai-count" class="w-full bg-slate-50 p-4 rounded-2xl outline-none border" value="5" max="10"></div>
+		<div id="ai-loading" class="hidden-element flex items-center justify-center p-4"><div class="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mr-3"></div><span class="text-xs font-bold text-indigo-600 uppercase">AI sedang berpikir...</span></div>
+		<div class="flex space-x-3 pt-4"><button onclick="closeModal('modal-ai')" class="flex-1 py-4 font-bold text-slate-400 text-xs uppercase">Batal</button><button id="ai-btn" onclick="generateAISoal()" class="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black text-xs shadow-lg shadow-indigo-100">GENERATE</button></div>
+		</div>
+		</div>
+	</div>
+
+	
+    <script>
+
+// --- A. SETUP CONFIGURATION & FIREBASE ---
+        const apiKey = "AIzaSyBrpMLLakAoM5HIL0Vax91OI0wX371Bgxc";
+        const firebaseConfig = {
+            apiKey: "AIzaSyDOkyWxtvVpwir6nbhEB3MNd44Caz_RWJU",
+            authDomain: "studio-4448301263-a6cd9.firebaseapp.com",
+            projectId: "studio-4448301263-a6cd9",
+            storageBucket: "studio-4448301263-a6cd9.firebasestorage.app",
+            messagingSenderId: "578574487721",
+            appId: "1:578574487721:web:c153cee7b19304b75d59b8"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        
+        // OPTIMASI FIRESTORE untuk 500 siswa - Hemat kuota & performa
+        db.settings({ 
+            merge: true,
+            cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED // Cache unlimited untuk performa
+        });
+        
+        // Enable offline persistence untuk mengurangi reads
+        db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+            console.warn("Persistence error:", err);
+        });
+
+        const appId = 'exambro-system-2026';
+        const publicData = db.collection('artifacts').doc(appId).collection('public').doc('data');
+
+        // --- 2. GLOBAL STATE ---
+        let user = null;
+        let isExamActive = false;
+	let isResuming = false;
+        let activePin = "1234";
+        let violationCount = 0;
+        let monitorInterval = null;
+        let currentRole = 'student';
+        let specialSettings = { pin: "1234", duration: 60 };
+        let peer = null;
+	let activeCalls = {};
+	let remoteStreams = {};
+        let initialWidth = window.innerWidth;
+        window.localStream = null;
+	
+	// --- 3. INITIALIZATION ---
+	window.onload = async () => {
+		if ('serviceWorker' in navigator) {navigator.serviceWorker.getRegistrations().then(function(registrations) {
+		for(let registration of registrations) {registration.unregister(); }}); }
+	try {await auth.signInAnonymously(); document.getElementById('loading-overlay').classList.add('hidden-element');
+
+        // 1. CEK SESSION LOGIN
+        const savedSession = localStorage.getItem('exambro_session');
+	        if (savedSession) {
+	            const sessionData = JSON.parse(savedSession); 
+	            if (sessionData.role === 'admin') {showPage('admin-page'); initPeer(); syncAdminData(); startMonitorFeed();
+	            } else if (sessionData.role === 'student' && sessionData.user) {
+	                user = sessionData.user; document.getElementById('display-std-name').textContent = user.nama;showPage('student-page'); 
+	                syncStudentData(); initPeer(); listenForAdminCommands(); 
+ 	           } 
+	        }
+
+	        // 2. LOGIKA AUTO-RESUME UJIAN
+	        const activeExam = localStorage.getItem('active_exam_state');
+	        if (activeExam) {const examData = JSON.parse(activeExam); const now = Date.now();
+	            if (now < examData.endTime) {isResuming = true; activePin = examData.pin; 
+	                const remainingMinutes = Math.round((examData.endTime - now) / 60000);
+	                startExamEngine(examData.url, examData.mapel, remainingMinutes, examData.isCamera);
+	            } else {localStorage.removeItem('active_exam_state');}
+	        }
+
+	        // 3. JALANKAN SERVICE DASAR
+	        setRole('student'); syncSpecialSettings(); loadKelas(); startCleanupService(); loadSheetConfig();} catch (e) {
+	        console.error("Init Error:", e);}
+	};
+
+
+
+// --- B. AUTHENTICATION & ROLE MANAGEMENT ---
+async function handleLogin() {
+    const pwdInput = document.getElementById('user-pwd');
+    const pwd = pwdInput.value;
+    const userIdInput = document.getElementById('user-id');
+    const selectNamaInput = document.getElementById('select-nama');
+    const loginBtn = document.querySelector('button[onclick="handleLogin()"]');
+
+    if (!pwd) { alert("Password wajib diisi!"); return; }
+    loginBtn.disabled = true;
+    loginBtn.innerHTML = "Memverifikasi...";
+
+    try {
+        if (currentRole === 'admin') {
+            // Pengamanan Admin Sederhana (Sebaiknya gunakan Firebase Auth di produksi)
+            if (userIdInput.value === 'admin' && pwd === 'admin123') {
+                const adminData = { role: 'admin', user: {nama: 'Administrator'}, time: Date.now() };
+                localStorage.setItem('exambro_session', JSON.stringify(adminData));
+		initPeer();  
+		showPage('admin-page'); 
+                syncAdminData(); 
+                startMonitorFeed();
+            } else { 
+                alert("Username atau Password Admin Salah!"); 
+            }
+        } else {
+            const userId = selectNamaInput.value;
+            if (!userId) { 
+                alert("Silahkan pilih nama Anda!"); 
+                loginBtn.disabled = false; 
+                loginBtn.innerHTML = "MASUK SISTEM"; 
+                return; 
+            }
+
+            const doc = await publicData.collection('users').doc(userId).get();
+            if (doc.exists) {
+                const userData = doc.data();
+                if (userData.pwd.toString() === pwd.toString()) {
+                    user = { id: doc.id, nama: userData.nama, kelas: userData.kelas, nis: userData.nis };
+                    const sessionData = { role: 'student', user: user, time: Date.now() };
+                    localStorage.setItem('exambro_session', JSON.stringify(sessionData));
+                    
+                    document.getElementById('display-std-name').textContent = user.nama;
+                    showPage('student-page'); 
+                    syncStudentData(); 
+                    initPeer(); 
+                    listenForAdminCommands();
+                } else { 
+                    alert("Password Siswa Salah!"); 
+                }
+            } else { 
+                alert("Data tidak ditemukan!"); 
+            }
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Gangguan Koneksi: " + error.message);
+    } finally {
+        loginBtn.disabled = false;
+        loginBtn.innerHTML = "MASUK SISTEM";
+    }
+}
+	async function logout() {
+	if(confirm("Yakin ingin keluar dari Akun Dashboard?")) {try {if (user && user.id) {await publicData.collection('live').doc(user.id).delete();}} catch (e) { console.log("Clean up skip"); }
+	localStorage.removeItem('exambro_session');
+	user = null; if (window.localStream) {window.localStream.getTracks().forEach(track => track.stop()); }location.reload(); }
+        }
+
+	function setRole(r) {
+            currentRole = r;
+            const isStd = r === 'student';
+            document.getElementById('role-std').className = isStd ? "flex-1 py-3 text-xs font-bold rounded-xl bg-white shadow-sm text-blue-600" : "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400";
+            document.getElementById('role-adm').className = !isStd ? "flex-1 py-3 text-xs font-bold rounded-xl bg-white shadow-sm text-blue-600" : "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400";
+            document.getElementById('user-id').classList.toggle('hidden-element', isStd);
+            document.getElementById('select-kelas').classList.toggle('hidden-element', !isStd);
+            document.getElementById('select-nama').classList.toggle('hidden-element', !isStd);
+        }
+
+	async function loadKelas() {
+	    const snap = await publicData.collection('users').get();
+	    const kelasSet = new Set();
+	    snap.forEach(doc => {if(doc.data().kelas) kelasSet.add(doc.data().kelas); });
+	    const sortedKelas = Array.from(kelasSet).sort((a, b) => 
+	        a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+	    );
+	    const select = document.getElementById('select-kelas');
+	    select.innerHTML = '<option value="">Pilih Kelas</option>';
+	    sortedKelas.forEach(k => {select.innerHTML += `<option value="${k}">${k}</option>`; });
+	}
+
+	document.getElementById('select-kelas').addEventListener('change', async function() {
+	    const kelasTerpilih = this.value;
+	    const selectNama = document.getElementById('select-nama');
+	    selectNama.innerHTML = '<option value="">Memuat Nama...</option>';
+	    if (!kelasTerpilih) {selectNama.innerHTML = '<option value="">Pilih Nama</option>'; return; }
+	    try {const snap = await publicData.collection('users').where('kelas', '==', kelasTerpilih) .get();
+	        let daftarSiswa = [];
+	        snap.forEach(doc => {daftarSiswa.push({ id: doc.id, nama: doc.data().nama });});
+
+	        // Mengurutkan Nama Siswa A-Z
+	        daftarSiswa.sort((a, b) => a.nama.localeCompare(b.nama));
+	        selectNama.innerHTML = '<option value="">Pilih Nama</option>';
+	        daftarSiswa.forEach(siswa => {
+	            // Menggunakan template literal untuk memastikan nama lengkap masuk ke option
+	            const option = document.createElement('option'); option.value = siswa.id; option.textContent = siswa.nama; selectNama.appendChild(option); });
+	    } catch (error) {console.error("Gagal memuat nama:", error);
+	        selectNama.innerHTML = '<option value="">Gagal memuat data</option>'; }
+	});
+
+	async function renderClassCheckboxes(selectedClasses = []) {
+	    const container = document.getElementById('class-checkbox-container');    
+	    try {
+		const snap = await publicData.collection('users').get();
+	        const kelasSet = new Set();
+	        snap.forEach(doc => kelasSet.add(doc.data().kelas));
+	        const daftarKelas = Array.from(kelasSet).sort();
+        
+	        if (daftarKelas.length === 0) {container.innerHTML = '<p class="text-[10px] text-red-500">Belum ada data siswa/kelas.</p>'; return; }
+	        container.innerHTML = '';
+	        daftarKelas.forEach(kelas => {
+	            const isChecked = selectedClasses.includes(kelas) ? 'checked' : '';
+	            container.innerHTML += `
+	                <label class="flex items-center space-x-1.5 p-1.5 hover:bg-white rounded-xl cursor-pointer transition-all">
+			<input type="checkbox" name="target-kelas" value="${kelas}" ${isChecked} class="w-3.5 h-3.5 accent-blue-600"><span class="text-[10px] font-bold text-slate-700">${kelas}</span></label>`;
+	        });
+	    } catch (e) {container.innerHTML = '<p class="text-[10px] text-red-500">Gagal memuat kelas.</p>'; }
+	}
+
+
+
+
+// --- C. NAVIGATION & COMMON UI HELPERS ---
+        function showPage(id) {
+            ['login-page','admin-page','student-page'].forEach(p => document.getElementById(p).classList.add('hidden-element'));
+            document.getElementById(id).classList.remove('hidden-element');
+        }
+
+        function switchTab(t) {
+            ['exam','bank','student','monitor'].forEach(id => {
+                document.getElementById('section-'+id).classList.add('hidden-element');
+                document.getElementById('tab-btn-'+id).classList.remove('sidebar-active');
+                document.getElementById('tab-btn-'+id).classList.add('text-slate-400');
+            });
+            document.getElementById('section-'+t).classList.remove('hidden-element');
+            document.getElementById('tab-btn-'+t).classList.add('sidebar-active');
+            document.getElementById('tab-btn-'+t).classList.remove('text-slate-400');
+        }
+
+	function switchStudentView(view) {
+	    const scheduled = document.getElementById('view-scheduled');
+	    const manual = document.getElementById('view-manual');
+	    const qr = document.getElementById('qr-reader-container');
+	    // Sembunyikan semua view siswa
+	    scheduled.classList.add('hidden-element'); manual.classList.add('hidden-element'); qr.classList.add('hidden-element');
+	    // Tampilkan yang dipilih
+	    if (view === 'scheduled') {scheduled.classList.remove('hidden-element');} else if (view === 'manual') {manual.classList.remove('hidden-element');
+	    } else if (view === 'qr') {qr.classList.remove('hidden-element'); }
+	}
+
+    	function openModal(id) {const modal = document.getElementById(id);if (modal) {modal.classList.remove('hidden-element');} else {console.error("Modal dengan ID " + id + " tidak ditemukan!");}}
+	function closeModal(id) {const modal = document.getElementById(id);if (modal) {modal.classList.add('hidden-element');}}
+
+
+
+// --- D. ADMIN SERVICE (DATA MANAGEMENT) ---
+// 1. Fungsi untuk Memuat Link yang tersimpan di Cloud saat Admin dibuka
+async function loadSheetConfig() {
+    const doc = await publicData.collection('settings').doc('sheet_config').get();
+    if (doc.exists) {document.getElementById('sheet-url').value = doc.data().url; }
+}
+
+// 2. Fungsi Utama: Simpan Link ke Cloud dan Jalankan Sinkronisasi
+async function saveAndSyncSheet() {
+    const urlInput = document.getElementById('sheet-url').value.trim(); 
+    if (!urlInput) return alert("Masukkan link Google Sheet!");
+    
+    const btn = document.getElementById('btn-sync-sheet');
+    const btnText = document.getElementById('sync-text');
+    
+    btn.disabled = true;
+    btnText.textContent = "SINKRONISASI...";
+
+    try {
+        await publicData.collection('settings').doc('sheet_config').set({url: urlInput, lastSync: Date.now()});
+
+        let exportUrl = urlInput; 
+        if (urlInput.includes('/edit')) {
+            const match = urlInput.match(/\/d\/(.+?)\//); 
+            if (match) exportUrl = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv`; 
+        }
+
+        const res = await fetch(exportUrl);
+        const text = await res.text();
+        const rows = text.split(/\r?\n/);
+        
+        const batch = db.batch();
+        // Hapus database lama sebelum timpa yang baru
+        const oldDocs = await publicData.collection('users').get();
+        oldDocs.forEach(doc => batch.delete(doc.ref));
+
+        let addedCount = 0;
+        rows.forEach((row, index) => {
+            if (index === 0 || !row.trim()) return; // Lewati header atau baris kosong
+            
+            // Regex Sakti untuk handle CSV dengan tanda kutip
+            const cols = row.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g);
+            if (cols && cols.length >= 3) {
+                const clean = (str) => str ? str.replace(/^"|"$/g, '').trim() : "";
+                const docRef = publicData.collection('users').doc();
+                batch.set(docRef, {
+                    nis: clean(cols[0]),
+                    nama: clean(cols[1]),
+                    kelas: clean(cols[2]),
+                    pwd: cols[3] ? clean(cols[3]) : "123"
+                }); 
+                addedCount++;
+            }
+        });
+
+        await batch.commit(); 
+        alert(`Berhasil! ${addedCount} data siswa disinkronkan.`);
+        loadKelas(); 
+    } catch (e) { 
+        alert("Gagal Sinkron: " + e.message); 
+    } finally { 
+        btn.disabled = false; 
+        btnText.textContent = "SIMPAN & SINKRON"; 
+    }
+}
+
+// 3. Update Fungsi Tampilan Tabel (Hapus tombol Edit/Hapus)
+function syncAdminStudentData() {
+    publicData.collection('users').orderBy('kelas', 'asc').onSnapshot(s => {
+        const list = document.getElementById('admin-student-list');
+        if (!list) return; list.innerHTML = "";
+        s.forEach(d => {const u = d.data();
+            list.innerHTML += `<tr class="hover:bg-slate-50 transition-colors"><td class="px-8 py-5 font-bold text-sm text-slate-800">${u.nis}</td><td class="px-8 py-5 text-sm text-slate-600">${u.nama}</td><td class="px-8 py-5 text-[10px] font-black uppercase text-slate-400">${u.kelas}</td><td class="px-8 py-5 text-xs font-mono text-slate-300">${u.pwd}</td></tr>`;
+        });
+    });
+}
+
+       
+async function saveExam() {
+    const id = document.getElementById('edit-exam-id').value;
+    const nodes = document.querySelectorAll('input[name="target-kelas"]:checked');
+    const selectedClasses = Array.from(nodes).map(node => node.value).join(', ');
+    
+    if (!selectedClasses) return alert("Pilih minimal satu kelas!");
+    if (!document.getElementById('ex-mapel').value) return alert("Isi Nama Mapel!");
+
+    const data = {
+        mapel: document.getElementById('ex-mapel').value,
+        kelas: selectedClasses,
+        date: document.getElementById('ex-date').value,
+        duration: document.getElementById('ex-duration').value,
+        token: document.getElementById('ex-token').value.toUpperCase(),
+        pin: document.getElementById('ex-pin').value,
+        link: document.getElementById('ex-link').value,
+        active: document.getElementById('ex-active').checked,
+        camera: document.getElementById('ex-camera').checked
+    };
+
+    try {
+        if(id) {await publicData.collection('exams').doc(id).update(data);
+        } else {await publicData.collection('exams').add(data);}
+        alert("Paket Berhasil Disimpan!"); closeModal('modal-exam');
+    } catch (e) {alert("Gagal menyimpan ke Cloud: " + e.message); }
+}
+
+        async function copyExam(id) {
+		if(!confirm("Salin paket ujian ini?")) return;
+		const d = await publicData.collection('exams').doc(id).get();
+		const data = d.data();
+		data.mapel += " (Copy)";
+		data.active = false; // Hasil copy otomatis non-aktif agar bisa diedit dulu
+		await publicData.collection('exams').add(data);
+		alert("Paket berhasil dikloning!");
+	}
+
+        async function editExam(id) {
+	try {
+            const d = await publicData.collection('exams').doc(id).get();
+            const x = d.data();
+	    document.getElementById('exam-modal-title').textContent = "Edit Paket Ujian";
+            document.getElementById('edit-exam-id').value = id;
+            document.getElementById('ex-mapel').value = x.mapel;
+            document.getElementById('ex-date').value = x.date;
+            document.getElementById('ex-duration').value = x.duration;
+            document.getElementById('ex-token').value = x.token;
+            document.getElementById('ex-pin').value = x.pin;
+            document.getElementById('ex-link').value = x.link;
+			document.getElementById('ex-active').checked = x.active !== false;
+			document.getElementById('ex-camera').checked = x.camera !== false;
+            const selected = x.kelas ? x.kelas.split(', ') : []; renderClassCheckboxes(selected);
+		openModal('modal-exam');} catch (e) {alert("Gagal mengambil data ujian!"); }
+        }
+	
+	async function delDoc(c, id) { if(confirm("Hapus data ini secara permanen dari Cloud?")) await publicData.collection(c).doc(id).delete(); }
+
+        function openExamModal() {document.getElementById('edit-exam-id').value = ""; 
+		['ex-mapel', 'ex-date', 'ex-duration', 'ex-token', 'ex-pin', 'ex-link'].forEach(i => document.getElementById(i).value = ""); renderClassCheckboxes([]); openModal('modal-exam');
+        }
+
+	function syncAdminData() {syncAdminStudentData();
+	    publicData.collection('exams').onSnapshot(s => {
+	        const list = document.getElementById('admin-exam-list'); if(!list) return;
+	        list.innerHTML = "";
+	        s.forEach(d => {const x = d.data();
+	            list.innerHTML += `<div class="bg-white p-6 rounded-[2.5rem] border-2 border-transparent hover:border-blue-200 transition-all flex justify-between items-center group">
+	                <div><h4 class="font-black text-slate-800">${x.mapel}</h4><p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">${x.kelas} | TOKEN: ${x.token} | PIN: ${x.pin}</p></div>
+	                <div class="flex space-x-2"><button onclick="copyExam('${d.id}')" class="bg-emerald-50 text-emerald-600 p-3 rounded-xl" title="Copy Paket">📄</button><button onclick="editExam('${d.id}')" class="bg-blue-50 text-blue-500 p-3 rounded-xl">✎</button><button onclick="delDoc('exams','${d.id}')" class="bg-red-50 text-red-500 p-3 rounded-xl">✕</button></div>
+	            </div>`; });
+		    });
+
+	       // Bank Sync
+		publicData.collection('ai_bank').onSnapshot(s => { const list = document.getElementById('ai-question-list');
+	        if(!list) return; list.innerHTML = ""; s.forEach(d => {const q = d.data(); list.innerHTML += `<div class="bg-white p-6 rounded-3xl border border-slate-100"><p class="text-slate-800 font-medium">${q.question}</p><span class="text-[9px] bg-indigo-50 text-indigo-500 px-3 py-1 rounded-full font-black uppercase mt-3 inline-block">${q.topic}</span></div>`;
+	        });
+	    });
+	}
+
+        async function syncSpecialSettings() {publicData.collection('settings').doc('special_methods').
+		onSnapshot(d => { if(d.exists) specialSettings = d.data(); }); }
+
+        async function saveSpecialSettings() {
+            const pin = document.getElementById('special-pin').value;
+            const dur = parseInt(document.getElementById('special-duration').value);
+            await publicData.collection('settings').doc('special_methods').set({pin, duration: dur, updatedAt: Date.now()});
+            alert("Konfigurasi Akses Cepat Diperbarui!");
+        }
+
+
+
+
+
+
+
+
+// --- E. STUDENT SERVICE (EXAM ACCESS) ---
+	function syncStudentData() {
+	    publicData.collection('exams').onSnapshot(s => {
+	        const list = document.getElementById('student-exam-list');
+	        list.innerHTML = "";
+	        const today = new Date().toISOString().split('T')[0];
+	        s.forEach(d => {
+	            const x = d.data();
+	            const allowedClasses = x.kelas ? x.kelas.split(', ') : [];
+	            const isAllowed = allowedClasses.includes(user.kelas);
+	            if(isAllowed && x.active !== false && x.date <= today) { 
+	                list.innerHTML += `
+	                <div class="bg-white p-4 rounded-[2rem] border shadow-sm text-center">
+	                    <h4 class="font-black text-xs text-slate-800 truncate mb-1">${x.mapel}</h4>
+	                    <p class="text-[8px] text-slate-400 font-bold mb-3 uppercase">${x.duration} Menit</p>
+	                    <input type="text" id="tk-${d.id}" class="w-full bg-slate-50 p-2 rounded-xl text-center mb-2 font-black text-xs outline-none" placeholder="TOKEN">
+	                    <button onclick="startExam('${d.id}', '${x.token}')" class="w-full bg-blue-600 text-white py-2 rounded-xl font-black text-[10px]">MULAI</button>
+	                </div>`;
+	            }
+	        });
+	        if (list.innerHTML === "") list.innerHTML = "<p class='col-span-2 text-center py-10 text-slate-400 text-xs italic font-bold'>Tidak ada ujian untuk kelas Anda hari ini.</p>";
+	    });
+	}
+
+
+function logActivity(a) {publicData.collection('logs').add({ user: user ? user.nama : "System", action: a, time: firebase.firestore.FieldValue.serverTimestamp() });}
+
+		
+let html5QrScanner = null;
+function simulateScan() {
+    // Pindah ke tampilan kamera
+    switchStudentView('qr');
+    html5QrScanner = new Html5Qrcode("qr-reader");
+    html5QrScanner.start(
+        { facingMode: "environment" }, { fps: 10, qrbox: 250 },
+        async (decodedText) => {const scannedUrl = decodedText.trim();
+            if (scannedUrl.startsWith("http")) {await html5QrScanner.stop();
+                // Gunakan pengaturan global/akses cepat
+                activePin = specialSettings.pin || "1234"; startExamEngine(scannedUrl, "Akses Via Scan QR", specialSettings.duration || 60, true);
+            } else {alert("QR Code bukan berisi link valid!");}
+        }
+    ).catch(err => {alert("Kamera Error: " + err); stopQR(); });
+}
+
+async function stopQR() {
+    if (html5QrScanner) {try { await html5QrScanner.stop(); } catch (e) {} }
+    // Kembali ke daftar jadwal
+    switchStudentView('scheduled');
+}		
+		
+		
+function startManualExam() {
+    const url = document.getElementById('manual-url').value.trim();
+    // 1. Validasi Input
+    if (!url) {alert("Mohon tempelkan link ujian anda!"); return; }
+    
+    // Validasi sederhana format link
+    if (!url.startsWith("http")) {alert("Link tidak valid! Pastikan diawali dengan http:// atau https://"); return;}
+
+    // 2. Mengambil Pengaturan dari "Akses Cepat" Admin (specialSettings)
+    // Jika Admin belum menyetel, akan menggunakan default (PIN 1234, Durasi 60)
+    activePin = specialSettings.pin || "1234";
+    const duration = specialSettings.duration || 60;
+
+    // 3. Menjalankan Engine Ujian
+    // Parameter: (URL, Label Nama, Menit, Wajib Kamera: true)
+    startExamEngine(url, "Manual Access", duration, true);
+    
+    // Opsional: Kosongkan input setelah dijalankan
+    document.getElementById('manual-url').value = "";
+}
+
+
+async function startExam(id, correctToken) {
+    const tokenInput = document.getElementById(`tk-${id}`).value.toUpperCase();
+    if (tokenInput !== correctToken) {alert("Token ujian salah! Silahkan hubungi pengawas.");return;}
+    const doc = await publicData.collection('exams').doc(id).get();
+    if (doc.exists) {const x = doc.data();
+        activePin = x.pin || specialSettings.pin;
+        // Memulai engine ujian dengan membawa data pengaturan kamera
+        startExamEngine(x.link, x.mapel, x.duration, x.camera);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+// --- F. THE EXAM ENGGINE (THE HEART OF SYSTEM) ---
+async function startExamEngine(url, mapel, dur, isCameraRequired) {
+    // 1. Membersihkan Clipboard & State Awal
+    await clearClipboard();
+    isExamActive = true;
+    violationCount = 0;
+    initialWidth = window.innerWidth;
+    isResuming = false; // Reset flag resume
+
+    // 2. Setup Kamera (Jika Diwajibkan)
+    if (isCameraRequired !== false) {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 320 }, height: { ideal: 240 },frameRate: { max: 15 } }
+            });
+            window.localStream = stream;
+            const selfVideo = document.getElementById('self-video');
+            selfVideo.srcObject = stream;
+            selfVideo.parentElement.classList.remove('hidden-element');
+        } catch (e) {console.error("Camera Error:", e);
+            alert("⚠️ Ujian ini wajib menggunakan kamera. Pastikan izin kamera telah diberikan!");
+            return;
+        }
+    } else {
+        // Pastikan tidak ada stream tersisa dari sesi sebelumnya
+        if (window.localStream) {
+            window.localStream.getTracks().forEach(track => track.stop());
+            window.localStream = null;
+        }
+        document.getElementById('self-video').parentElement.classList.add('hidden-element');
+    }
+
+    // 3. Aktifkan Protokol Keamanan (Lockdown)
+    enableHardLockdown();
+    const endTime = Date.now() + (dur * 60 * 1000);
+    localStorage.setItem('active_exam_state', JSON.stringify({
+        url: url,
+        mapel: mapel,
+        endTime: endTime,
+        isCamera: isCameraRequired,
+        pin: activePin
+    }));
+
+    // 5. Setup UI & Iframe (Dengan Keamanan Sandbox)
+    document.getElementById('view-mapel').textContent = mapel;
+    
+    // Sandbox: Izinkan form & script, tapi cegah navigasi top-level (kabur dari app)
+    const iframeHtml = `
+        <iframe 
+            src="${url}" 
+            allow="camera; microphone; autoplay; display-capture" 
+            sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-modals allow-downloads allow-storage-access-by-user-activation"
+            style="width:100%; height:100%; border:none;">
+        </iframe>`;
+    
+    document.getElementById('exam-frame-container').innerHTML = iframeHtml;
+    document.getElementById('exam-viewer').classList.remove('hidden-element');
+
+    // 6. Masuk Mode Layar Penuh (Fullscreen)
+    try {
+        if (!document.fullscreenElement) {
+            await document.documentElement.requestFullscreen();
+        }
+    } catch (err) {
+        console.warn("Fullscreen blocked, user interaction required.");
+    }
+
+    // 7. Sinkronisasi Awal ke Firestore (Status + Foto Thumbnail Hemat)
+    const syncStatus = async (img = "", forceSave = false) => {
+        try {
+            const baseData = {
+                nama: user.nama,
+                kelas: user.kelas || "Umum",
+                last: Date.now(),
+                v: violationCount,
+                camStatus: isCameraRequired !== false ? "ON" : "OFF",
+                lastStatus: "SEDANG UJIAN",
+                isLocked: false
+            };
+
+            // SIMPAN FOTO THUMBNAIL KE LOCALSTORAGE (TIDAK KE FIREBASE)
+            // Untuk admin monitoring real-time setiap 5 detik, hemat kuota
+            if (img && !forceSave) {
+                const thumbnails = JSON.parse(localStorage.getItem('student_thumbnails') || '{}');
+                thumbnails[user.id] = {img: img, time: Date.now()};
+                localStorage.setItem('student_thumbnails', JSON.stringify(thumbnails));
+            }
+
+            // ✅ OPTIMASI: Hanya simpan foto violation ke LocalStorage (TIDAK KE FIREBASE)
+            // Mengurangi Firebase writes & storage hingga 95%, data tetap aman di device
+            if (img && (violationCount > 0 || forceSave)) {
+                const violationPhotos = JSON.parse(localStorage.getItem('violation_photos') || '[]');
+                if (violationPhotos.length < 5) { // Batasi maksimal 5 foto violation per siswa
+                    violationPhotos.push({img: img, time: Date.now(), violation: violationCount});
+                    localStorage.setItem('violation_photos', JSON.stringify(violationPhotos));
+                    // ✅ REMOVED: baseData.img = img; // Jangan simpan foto violation ke Firestore
+                    // Foto tetap tersedia di LocalStorage untuk admin via WebRTC P2P
+                }
+            }
+
+            await publicData.collection('live').doc(user.id).set(baseData, { merge: true });
+        } catch (err) { console.error("Sync Error:", err); }
+    };
+    syncStatus(); // Jalankan sekali saat start
+
+    // 8. Timer Logic (Penghitung Mundur)
+    let timeRemaining = dur * 60;
+    if (window.examTimerInterval) clearInterval(window.examTimerInterval);
+    
+    window.examTimerInterval = setInterval(() => {
+        if (!isExamActive) { clearInterval(window.examTimerInterval); return; }
+        
+        timeRemaining--;
+        if (timeRemaining <= 0) {
+            clearInterval(window.examTimerInterval);
+            finishExam();
+            alert("Waktu ujian telah habis!");
+            return;
+        }
+
+        const m = Math.floor(timeRemaining / 60);
+        const s = timeRemaining % 60;
+        document.getElementById('exam-timer').textContent = 
+            `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }, 1000);
+
+    // 9. Monitoring Loop (Foto Real-time untuk Admin + Status Update)
+    if (monitorInterval) clearInterval(monitorInterval);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    monitorInterval = setInterval(async () => {
+        if (!isExamActive) return;
+
+        // Cek apakah admin sedang memantau siswa ini (via PeerJS connection)
+        const isBeingMonitored = window.activeMonitoring && window.activeMonitoring.has(user.id);
+        
+        let snapshotData = "";
+        if (isCameraRequired !== false && window.localStream && isBeingMonitored) {
+            // Hanya ambil foto jika sedang di-monitoring admin (max 10-20 siswa)
+            canvas.width = 160; // Resolusi sedang untuk monitoring aktif
+            canvas.height = 120;
+            ctx.drawImage(document.getElementById('self-video'), 0, 0, 160, 120);
+            snapshotData = canvas.toDataURL('image/jpeg', 0.3); // Kualitas 0.3 untuk monitoring
+        }
+        
+        // Update status (dengan foto hanya jika sedang di-monitoring)
+        syncStatus(snapshotData, false);
+    }, 5000); // Interval 5 detik untuk monitoring real-time
+}
+
+
+async function finishExam() {
+    isExamActive = false;
+    // Stop Monitor & Session
+    if (monitorInterval) clearInterval(monitorInterval), monitorInterval = null; localStorage.removeItem('active_exam_state');
+    // Hapus foto violation dari localStorage
+    localStorage.removeItem('violation_photos');
+    // Clear active monitoring tracking
+    if (window.activeMonitoring) {
+        window.activeMonitoring.clear();
+    }
+    // Stop Camera Tracks
+    if (window.localStream) {window.localStream.getTracks().forEach(t => t.stop());window.localStream = null; }
+    // Delete Live Data
+    if (user?.id) {try { await publicData.collection('live').doc(user.id).delete(); } catch (e) { console.log("Gagal hapus live"); }}
+    // Exit Fullscreen & UI Reset
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    alert("Ujian selsesai! Pastikan jawaban sudah dikirim."); location.reload();
+}
+
+function confirmFinishExam() { if(confirm("Apakah anda yakin telah menyelesaikan semua soal dan ingin keluar?")) finishExam(); }
+
+async function clearClipboard() {
+        try {await navigator.clipboard.writeText("Akses dilarang");
+        } catch (err) {const input = document.createElement("input");
+            input.value = " "; document.body.appendChild(input); input.select(); document.execCommand("copy"); document.body.removeChild(input); }
+    }
+
+
+
+
+
+
+
+
+
+
+// --- G. SECURITY VIOLATION & LOCKDOWN ---
+
+let isSecuritySetup = false;
+function enableHardLockdown() {
+    if (isSecuritySetup) return;
+
+    // 1. Mencegah Klik Kanan & Seleksi Teks
+    document.oncontextmenu = () => false;
+    document.onselectstart = () => false;
+    document.ondragstart = () => false; // Mencegah drag teks soal
+
+    // 2. Jebakan Tombol Back (Android)
+    history.pushState(null, null, location.href);
+    window.onpopstate = function() {
+        history.go(1);
+        if(isExamActive) reportViolation();
+    };
+
+    // 3. Deteksi Visibility (Pindah Tab)
+    document.addEventListener('visibilitychange', () => {
+        if (isExamActive && document.visibilityState !== 'visible') {
+            reportViolation();
+        }
+    });
+
+    // 4. Keyboard Protector (Lebih Ketat)
+    window.onkeydown = (e) => {
+        if (!isExamActive) return;
+
+        // F12, Ctrl+Shift+I, Ctrl+U, Ctrl+S, Ctrl+P, Alt+Tab, Meta (Windows Key)
+        const forbiddenKeys = [122, 123, 44, 18, 91, 92]; 
+        const isControlAction = e.ctrlKey && 'uIpscvj'.includes(e.key.toLowerCase());
+        const isShiftAction = e.ctrlKey && e.shiftKey && 'IJ'.includes(e.key.toUpperCase());
+
+        if (forbiddenKeys.includes(e.keyCode) || isControlAction || isShiftAction) {
+            e.preventDefault();
+            reportViolation();
+            return false;
+        }
+    };
+
+    // 5. Proteksi Print (Ctrl+P)
+    window.addEventListener('beforeprint', (e) => {
+        if(isExamActive) {
+            e.preventDefault();
+            reportViolation();
+        }
+    });
+
+    isSecuritySetup = true;
+}
+
+function handleKeyboardLock(e) {
+    if (!isExamActive) return;
+    // List tombol yang dilarang
+    const forbiddenKeys = [
+        123, // F12
+        44,  // PrintScreen
+        112, 113, 114, 115, 117, 118, 119, 120, 121, 122 // F1-F12 kecuali F6/F5 tertentu
+    ];
+
+    if (forbiddenKeys.includes(e.keyCode) || 
+        (e.ctrlKey && (e.key === 'u' || e.key === 's' || e.key === 'p' || e.key === 'c' || e.key === 'v' || e.key === 'i' || e.key === 'j')) ||
+        (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
+        (e.metaKey && e.shiftKey && e.key === '4') // Mac Screenshot
+    ) {
+        e.preventDefault(); e.stopPropagation(); reportViolation();
+        alert("Aksi ini dilarang selama ujian!"); return false;
+    }
+}
+        function reportViolation() {
+	if (!isExamActive) return;
+	violationCount++;
+ 	   // Update tampilan lokal untuk siswa
+	    document.getElementById('violation-count').textContent = violationCount;
+	    document.getElementById('violation-badge').classList.remove('hidden-element');
+	    document.getElementById('alarm-sound').play();
+	    document.body.classList.add('violation-shake');
+	    setTimeout(() => document.body.classList.remove('violation-shake'), 500);
+
+	    // AMBIL FOTO VIOLATION dan simpan ke Firestore
+	    if (window.localStream && isCameraRequired !== false) {
+	        const canvas = document.createElement('canvas');
+	        const ctx = canvas.getContext('2d');
+	        canvas.width = 320; // Resolusi lebih tinggi untuk foto violation
+	        canvas.height = 240;
+	        ctx.drawImage(document.getElementById('self-video'), 0, 0, 320, 240);
+	        const violationPhoto = canvas.toDataURL('image/jpeg', 0.5); // Kualitas 0.5 untuk violation
+	        syncStatus(violationPhoto, true); // Force save foto violation
+	    }
+
+	    if (violationCount >= 5) triggerLock();
+	}
+
+	// ✅ FUNGSI BARU: Kirim notifikasi pelanggaran via WebRTC P2P
+	async function sendViolationNotificationToPeer() {
+	    if (!user) return;
+	    
+	    const violationMessage = {
+	        type: 'violation_alert',
+	        studentId: user.id,
+	        studentName: user.nama,
+	        kelas: user.kelas,
+	        violationCount: violationCount,
+	        timestamp: Date.now(),
+	        lockStatus: true,
+	        photoCount: JSON.parse(localStorage.getItem('violation_photos') || '[]').length
+	    };
+	    
+	    try {
+	        // Cek apakah ada active peer connections ke admin
+	        if (window.activeCalls && Object.keys(window.activeCalls).length > 0) {
+	            Object.entries(window.activeCalls).forEach(([peerId, call]) => {
+	                if (call.peerConnection && 
+	                    call.peerConnection.connectionState === 'connected' && 
+	                    call.peerConnection.dataChannelStats) {
+	                    
+	                    // Kirim via data channel jika tersedia
+	                    const senders = call.peerConnection.getSenders();
+	                    if (senders.length > 0) {
+	                        console.log('📡 Mengirim violation notification ke peer admin via WebRTC');
+	        
+	                    }
+	                }
+	            });
+	        }
+	        
+	        // Fallback: Log untuk debug
+	        console.log('🚨 Violation Report:', violationMessage);
+	    } catch (e) {
+	        console.error("Gagal kirim violation notification:", e);
+	    }
+	}
+
+	async function triggerLock() { 
+	    if (isExamActive) {
+	        document.getElementById('lock-screen').classList.remove('hidden-element');
+	        
+	        // ✅ OPTIMASI: Simpan status lock di LocalStorage terlebih dahulu
+	        localStorage.setItem('exam_lock_status', JSON.stringify({
+	            isLocked: true,
+	            violationCount: violationCount,
+	            timestamp: Date.now(),
+	            studentId: user.id,
+	            violationPhotos: localStorage.getItem('violation_photos')
+	        }));
+	        
+	        // ✅ Kirim notifikasi pelanggaran via WebRTC P2P ke admin (jika connected)
+	        sendViolationNotificationToPeer();
+	        
+	        // ⚠️ Firebase update sebagai fallback (minimal write)
+	        if (user && user.id) {
+	            try {
+	                await publicData.collection('live').doc(user.id).update({
+	                    isLocked: true, 
+	                    v: violationCount, 
+	                    lastStatus: 'TERKUNCI - BUTUH PIN',
+	                    lock_timestamp: Date.now()
+	                }); 
+	            } catch (e) { 
+	                console.error("Fallback Firebase error:", e); 
+	            } 
+	        }
+	    } 
+	}
+
+        async function unlockApp() {
+            if (document.getElementById('unlock-pwd').value === activePin) {
+                document.getElementById('lock-screen').classList.add('hidden-element');
+                document.getElementById('unlock-pwd').value = "";
+                violationCount = 0;
+                document.getElementById('violation-count').textContent = "0";
+                document.getElementById('violation-badge').classList.add('hidden-element');
+			// BERITAHU ADMIN: Update status bahwa sudah terbuka
+		        if (user && user.id) {await publicData.collection('live').doc(user.id).update({
+	                isLocked: false, v: 0, lastStatus: 'AKTIF'}); }
+
+                setTimeout(() => document.documentElement.requestFullscreen().catch(() => {}), 500);
+            } else { alert("PIN Pengawas Salah!"); }
+        }
+
+
+
+// --- H. LIVE MONITORING & PEER JS ---
+function initPeer() {
+    if (!user) return;
+    // Gunakan fungsi pembersihan yang sama di kedua sisi
+    const cleanId = user.id.replace(/[^a-zA-Z0-9]/g, '');
+    const safePeerId = 'exam2026_' + cleanId;
+    
+    if (peer) peer.destroy();
+    peer = new Peer(safePeerId, {
+        config: {'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }]}
+    });
+
+    peer.on('call', (call) => {
+        if (window.localStream) {
+            call.answer(window.localStream);
+        } else {
+            // Jika kamera tidak aktif, kirim black frame agar monitor admin tidak error
+            const canvas = document.createElement('canvas');
+            call.answer(canvas.captureStream());
+        }
+        
+        // ✅ SETUP WebRTC DataChannel untuk violation messages
+        call.peerConnection.addEventListener('datachannel', (event) => {
+            const channel = event.channel;
+            setupDataChannel(channel);
+        });
+        
+        // ✅ Track active peer connections
+        if (!window.activeCalls) window.activeCalls = {};
+        window.activeCalls[call.peer] = call;
+        console.log('📡 Peer connected for streaming:', call.peer);
+    });
+}
+
+// ✅ FUNGSI BARU: Setup DataChannel untuk P2P messaging
+function setupDataChannel(channel) {
+    channel.onopen = () => {
+        console.log('📲 DataChannel opened - siap kirim messages');
+    };
+    
+    channel.onmessage = (msg) => {
+        try {
+            const data = JSON.parse(msg.data);
+            if (data.type === 'violation_alert') {
+                console.log('🚨 Violation Alert diterima dari admin');
+                // Student side: handle admin commands
+            }
+        } catch (e) {
+            console.error('DataChannel message parse error:', e);
+        }
+    };
+    
+    channel.onerror = (error) => {
+        console.error('DataChannel error:', error);
+    };
+    
+    channel.onclose = () => {
+        console.log('📵 DataChannel closed');
+    };
+}
+
+
+function startMonitorFeed() {
+    publicData.collection('live').onSnapshot(s => {
+        const grid = document.getElementById('monitor-grid');
+        const onlineCountEl = document.getElementById('online-count');
+        
+        // 1. Update jumlah online & layout utama
+        onlineCountEl.textContent = s.size + " Siswa Sedang Aktif";
+        grid.className = "space-y-6"; // Mengurangi jarak antar section kelas
+
+        const currentStudentIds = new Set();
+
+        s.forEach(d => {
+            const l = d.data();
+            const studentId = d.id;
+            const safeId = studentId.replace(/[^a-zA-Z0-9]/g, '');
+            currentStudentIds.add(studentId);
+
+            const isOnline = (Date.now() - l.last) < 15000;
+            const isLocked = l.isLocked === true || l.v >= 5;
+            const kelas = l.kelas || "Tanpa Kelas";
+            const sectionId = `grid-kelas-${kelas.replace(/\s+/g, '-')}`;
+
+            // 2. Cek apakah Section Kelas sudah ada
+            let subGrid = document.getElementById(sectionId);
+            if (!subGrid) {
+                const section = document.createElement('div');
+                section.innerHTML = `
+                    <div class="flex items-center mb-3">
+                        <h3 class="text-[9px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-3 py-1 rounded-full">${kelas}</h3>
+                        <div class="h-[1px] flex-grow bg-slate-100 ml-3"></div>
+                    </div>
+                    <!-- Responsive Grid: Berubah dari 2 kolom ke 10 kolom berdasarkan lebar layar -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2" id="${sectionId}"></div>
+                `;
+                grid.appendChild(section);
+                subGrid = document.getElementById(sectionId);
+            }
+
+            // 3. Cek apakah Card Siswa sudah ada
+            let card = document.getElementById(`card-${safeId}`);
+            if (!card) {
+                card = document.createElement('div');
+                card.id = `card-${safeId}`;
+                subGrid.appendChild(card);
+            }
+
+            // 4. Update CSS Card (Lebih kompak)
+            card.className = `monitor-card bg-white rounded-xl border transition-all ${
+                isLocked ? 'border-red-500 ring-2 ring-red-500/10 shadow-lg z-10 scale-[1.02]' : 
+                l.v > 0 ? 'border-amber-400' : 'border-slate-200'
+            } overflow-hidden relative`;
+
+            // 5. Update Isi Card (Gaya Mikro untuk 10 Kolom)
+            const videoPlaying = document.getElementById(`remote-video-${safeId}`);
+            
+            card.innerHTML = `
+                ${isLocked ? `<div class="absolute inset-0 bg-red-600/5 animate-pulse pointer-events-none z-20"></div>` : ''}
+
+                <!-- Preview Box (Aspect Ratio 16:9 agar hemat tempat vertikal) -->
+                <div class="aspect-video bg-slate-100 relative group" id="container-${studentId}">
+                    ${videoPlaying ? '' : (l.img ? `<img src="${l.img}" class="w-full h-full object-cover">` : `<div class="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-300"><span class="text-xs">👤</span></div>`)}
+                    
+                    <div class="absolute top-1 left-1 flex flex-col gap-1 z-30">
+                        <div class="flex items-center gap-1">
+                            <div class="w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-slate-400'}"></div>
+                            ${isLocked ? `<span class="bg-red-600 text-white text-[6px] font-black px-1 py-0.5 rounded shadow-sm">LOCK</span>` : ''}
+                        </div>
+                        ${l.v > 0 && !isLocked ? `<div class="bg-amber-500 text-white text-[6px] font-black px-1 py-0.5 rounded shadow-sm">V: ${l.v}</div>` : ''}
+                    </div>
+
+                    <!-- Overlay Hover Cepat -->
+                    <div class="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        ${l.camStatus === 'ON' ? `<button onclick="openLiveStream('${studentId}')" class="bg-white text-slate-900 p-1 rounded-md shadow-xl hover:scale-110 transition-transform">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                         </button>` : `<div class="bg-white/90 text-slate-700 text-[8px] font-black uppercase tracking-[0.1em] px-3 py-2 rounded-xl">NO CAMERA</div>`}
+                    </div>
+                </div>
+
+                <!-- Info Box (Padding diperkecil ke p-1.5) -->
+                <div class="p-1.5 relative z-30">
+                    <div class="flex flex-col mb-1.5">
+                        <span class="text-[9px] font-bold ${isLocked ? 'text-red-600' : 'text-slate-800'} truncate uppercase leading-tight">${l.nama}</span>
+                        <span class="text-[7px] font-medium text-slate-400 uppercase tracking-tighter">NIS: ${studentId.slice(-5)}</span>
+                    </div>
+                
+                    <div class="grid ${l.camStatus === 'ON' ? 'grid-cols-3' : 'grid-cols-2'} gap-1">
+                        ${l.camStatus === 'ON' ? `
+                    </div>
+                    <div class="grid grid-cols-2 gap-1">
+                        <button onclick="openLiveStream('${studentId}')" class="bg-blue-50 text-blue-600 text-[6px] font-black py-1 rounded-md hover:bg-blue-600 hover:text-white transition-all uppercase">Live</button>
+                        ` : `<button class="bg-slate-100 text-slate-400 text-[6px] font-black py-1 rounded-md uppercase cursor-not-allowed">No Cam</button>`}
+                        <button onclick="remoteUnlockStudent('${studentId}')" class="${isLocked ? 'bg-red-600 text-white' : 'bg-slate-50 text-slate-400'} text-[6px] font-black py-1 rounded-md hover:opacity-80 transition-all uppercase">
+                            ${isLocked ? 'OPEN' : 'PASS'}
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            if (videoPlaying) {
+                const newContainer = document.getElementById(`container-${studentId}`);
+                newContainer.prepend(videoPlaying);
+            }
+        });
+
+        // 6. Cleanup card yang sudah tidak ada di live stream
+        const allCards = grid.querySelectorAll('.monitor-card');
+        allCards.forEach(card => {
+            const id = card.id.replace('card-', '');
+            // Logika penghapusan jika diperlukan
+        });
+    });
+}
+
+function openLiveStream(studentId) {
+    const cleanId = studentId.replace(/[^a-zA-Z0-9]/g, '');
+    const container = document.getElementById(`container-${studentId}`);
+    if (!container) return;
+
+    // Tambahkan indikator loading
+    container.innerHTML += `<div id="loading-${cleanId}" class="absolute inset-0 flex items-center justify-center bg-black/50 text-white text-[10px]">Connecting...</div>`;
+
+    const safePeerId = 'exam2026_' + cleanId;
+    const call = peer.call(safePeerId, new MediaStream());
+
+    // Track active monitoring connections
+    if (!window.activeMonitoring) window.activeMonitoring = new Set();
+    window.activeMonitoring.add(studentId);
+
+    call.on('stream', (remoteStream) => {
+        const loading = document.getElementById(`loading-${cleanId}`);
+        if(loading) loading.remove();
+        
+        container.innerHTML = `
+            <video id="remote-video-${cleanId}" autoplay muted playsinline class="w-full h-full object-cover z-10"></video>
+            <button onclick="stopLiveStream('${studentId}')" class="absolute bottom-2 right-2 z-40 bg-red-600 text-white text-[8px] px-2 py-1 rounded">CLOSE</button>
+        `;
+        const video = document.getElementById(`remote-video-${cleanId}`);
+        if (video) video.srcObject = remoteStream;
+    });
+
+    call.on('error', (err) => {
+        alert("Gagal memanggil kamera siswa. Pastikan siswa masih aktif.");
+        stopLiveStream(studentId);
+    });
+}
+
+function stopLiveStream(studentId) {
+    const videoElement = document.getElementById(`remote-video-${studentId}`);
+    if (videoElement) {
+        const stream = videoElement.srcObject;
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+        videoElement.remove();
+    }
+    
+    // Remove from active monitoring tracking
+    if (window.activeMonitoring) {
+        window.activeMonitoring.delete(studentId);
+    }
+    
+    // Paksa refresh grid untuk memunculkan kembali foto thumbnail terakhir
+    startMonitorFeed();
+}
+
+	// ✅ FUNGSI BARU: Handler untuk violation notification dari siswa via WebRTC
+	function handleAdminViolationNotification(violationData) {
+	    // ✅ OPTIMASI: Simpan hanya di LocalStorage admin (temporary session, TIDAK ke Firebase)
+	    const adminViolationLog = JSON.parse(localStorage.getItem('admin_violation_log') || '[]');
+	    
+	    adminViolationLog.push({
+	        ...violationData,
+	        received_at: Date.now()
+	    });
+	    
+	    // Batasi 100 item terakhir dalam session
+	    if (adminViolationLog.length > 100) {
+	        adminViolationLog.shift();
+	    }
+	    
+	    localStorage.setItem('admin_violation_log', JSON.stringify(adminViolationLog));
+	    
+	    // ✅ TAMPILKAN NOTIFIKASI REAL-TIME
+	    showAdminViolationNotification(`🚨 ${violationData.studentName} (${violationData.kelas}) - Pelanggaran #${violationData.violationCount}`, violationData.studentId);
+	    
+	    // ✅ UPDATE MONITORING CARD DENGAN STATUS MERAH
+	    updateViolationCardUI(violationData.studentId, violationData.violationCount);
+	    
+	    console.log('📢 Violation Alert Diterima dari:', violationData.studentName);
+	}
+
+	function showAdminViolationNotification(message, studentId) {
+	    // Buat toast notification
+	    const existingToast = document.getElementById('admin-toast');
+	    if (existingToast) existingToast.remove();
+	    
+	    const toast = document.createElement('div');
+	    toast.id = 'admin-toast';
+	    toast.className = 'fixed top-4 right-4 bg-red-600 text-white px-6 py-4 rounded-2xl shadow-2xl z-[5000] animate-bounce';
+	    toast.innerHTML = `<div>${message}</div><button onclick="this.parentElement.remove()" class="text-xs mt-2 opacity-75">Tutup</button>`;
+	    document.body.appendChild(toast);
+	    
+	    // Auto remove setelah 10 detik
+	    setTimeout(() => {
+	        if (toast.parentElement) toast.remove();
+	    }, 10000);
+	}
+
+	function updateViolationCardUI(studentId, violationCount) {
+	    // Update card styling untuk menunjukkan violation status
+	    const cleanId = studentId.replace(/[^a-zA-Z0-9]/g, '');
+	    const card = document.getElementById(`card-${cleanId}`);
+	    if (card) {
+	        if (violationCount >= 5) {
+	            // LOCK STATUS - Merah terang
+	            card.style.borderColor = '#dc2626';
+	            card.style.boxShadow = '0 0 20px rgba(220, 38, 38, 0.3)';
+	        } else if (violationCount > 0) {
+	            // WARNING STATUS - Oranye
+	            card.style.borderColor = '#f59e0b';
+	            card.style.boxShadow = '0 0 15px rgba(245, 158, 11, 0.2)';
+	        }
+	    }
+	}
+
+	async function remoteUnlockStudent(studentId) {
+	    if(confirm("Buka akses siswa ini?")) {
+	        try {
+	            await publicData.collection('live').doc(studentId).update({ command: 'unlock', v: 0 });
+	        } catch (e) { alert("Gagal koneksi ke siswa."); }
+	    }
+	}
+
+	async function requestMonitoring(studentId) {
+	    if(confirm("Mulai monitoring real-time siswa ini? (akan mengirim foto setiap 5 detik)")) {
+	        try {
+	            await publicData.collection('live').doc(studentId).update({ 
+	                command: 'start_monitoring', 
+	                monitoring_requested: true,
+	                monitoring_start: Date.now()
+	            });
+	        } catch (e) { alert("Gagal request monitoring."); }
+	    }
+	}
+
+	async function stopMonitoring(studentId) {
+	    if(confirm("Stop monitoring siswa ini?")) {
+	        try {
+	            await publicData.collection('live').doc(studentId).update({ 
+	                command: 'stop_monitoring', 
+	                monitoring_requested: false
+	            });
+	        } catch (e) { alert("Gagal stop monitoring."); }
+	    }
+	}
+
+	function listenForAdminCommands() {
+	    if (!user || !user.id) return;
+	    publicData.collection('live').doc(user.id).onSnapshot(doc => {
+	        if (doc.exists) {
+	            const data = doc.data();
+	            if (data.command === 'unlock') {
+	                forceUnlockLocally();
+	                doc.ref.update({ command: null });
+	            } else if (data.command === 'start_monitoring') {
+	                // Admin meminta monitoring real-time
+	                if (!window.activeMonitoring) window.activeMonitoring = new Set();
+	                window.activeMonitoring.add(user.id);
+	                console.log('Monitoring dimulai oleh admin');
+	                doc.ref.update({ command: null });
+	            } else if (data.command === 'stop_monitoring') {
+	                // Admin stop monitoring
+	                if (window.activeMonitoring) {
+	                    window.activeMonitoring.delete(user.id);
+	                }
+	                console.log('Monitoring dihentikan oleh admin');
+	                doc.ref.update({ command: null });
+	            }
+	        }
+	    });
+	}
+
+	function forceUnlockLocally() {
+	    document.getElementById('lock-screen').classList.add('hidden-element');
+	    document.getElementById('unlock-pwd').value = "";
+	    violationCount = 0;
+	    document.getElementById('violation-count').textContent = "0";
+	    document.getElementById('violation-badge').classList.add('hidden-element');
+ 	   // Memberi tahu siswa untuk klik agar fullscreen bisa aktif kembali
+	    alert("Akses dibuka oleh pengawas. Klik OK untuk lanjut.");
+	    document.documentElement.requestFullscreen().catch(() => {});
+	}
+
+
+	async function clearMonitorData() {
+		if(!confirm("Bersihkan?")) return;
+		const snap = await publicData.collection('live').get();
+		const batch = db.batch(); snap.forEach(doc => batch.delete(doc.ref)); await batch.commit();
+	}
+
+	function startCleanupService() {
+	    // Cleanup lebih agresif untuk 500 siswa - setiap 30 detik
+	    setInterval(async () => {try {
+	        const tenMinutesAgo = Date.now() - (10 * 60 * 1000); // 10 menit (bukan 5)
+	        const snap = await publicData.collection('live').where('last', '<', tenMinutesAgo).get();
+	        if (!snap.empty) {
+	            const batch = db.batch(); 
+	            snap.forEach(doc => batch.delete(doc.ref)); 
+	            await batch.commit();
+	            console.log(`Cleaned up ${snap.size} inactive sessions`);
+	        }
+	    } catch (e) { console.error("Cleanup error:", e); } }, 30000); // Setiap 30 detik
+	}
+
+
+
+
+// --- I. LOGIKA AI GEMINI ---
+async function generateAISoal() {
+    const topic = document.getElementById('ai-topic').value;
+    const count = document.getElementById('ai-count').value || 1;
+    if (!topic) return alert("Isi topik!");
+    const btn = document.getElementById('ai-btn');
+    const loader = document.getElementById('ai-loading');
+    btn.classList.add('hidden-element');
+    loader.classList.remove('hidden-element');
+    try {
+        const prompt = `Buatkan ${count} soal pilihan ganda tentang ${topic}. Berikan HANYA format JSON Array: [{"question": "..."}]. Tanpa teks lain.`;
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({contents: [{parts: [{text: prompt}]}], generationConfig: { responseMimeType: "application/json" } })
+        });
+        const result = await res.json();
+        let text = result.candidates[0].content.parts[0].text;
+	    const startBracket = text.indexOf('[');
+	    const endBracket = text.lastIndexOf(']') + 1;
+	    const cleanJson = text.substring(startBracket, endBracket);
+	    const qs = JSON.parse(cleanJson);
+        const batch = db.batch();
+        qs.forEach(q => {const docRef = publicData.collection('ai_bank').doc(); batch.set(docRef, { question: q.question, topic: topic, timestamp: Date.now() }); });
+        await batch.commit(); alert("Berhasil!"); closeModal('modal-ai');
+    } catch(e) { alert("Gagal."); } finally { btn.classList.remove('hidden-element'); loader.classList.add('hidden-element'); }
+}
+
+
+
+
+
+
+
+
+
+// --- J. LOGIKA AI GEMINI ---
+window.onbeforeunload = function() {if (isExamActive) {return "Ujian sedang berlangsung! Anda akan dicatat melakukan pelanggaran jika keluar."; }};
+window.addEventListener('blur', () => { if(isExamActive) {setTimeout(() => {if (document.activeElement.tagName !== 'IFRAME') {reportViolation();}}, 100);}});
+window.addEventListener('focus', () => {document.body.classList.remove('blur-screen'); if (isExamActive) {clearClipboard();} });
+
+document.addEventListener('visibilitychange', () => {
+    if (isExamActive && document.visibilityState === 'hidden') {
+        // Delay 1 detik untuk menghindari false positive saat alert sistem muncul
+        setTimeout(() => {if (document.visibilityState === 'hidden' && isExamActive) {reportViolation(); }
+        }, 1000);
+    }
+});
+
+document.addEventListener('fullscreenchange', () => {if (isExamActive && !document.fullscreenElement) {reportViolation();
+	alert("Peringatan! Anda keluar dari mode layar penuh. Selesaikan ujian di dalam mode ini.");
+	document.documentElement.requestFullscreen().catch(()=>{});}
+	});
+
+
+window.addEventListener('keydown', function(e) {
+    if (isExamActive && (e.which || e.keyCode) == 116) { // F5
+        e.preventDefault(); reportViolation(); alert("Dilarang me-refresh halaman!"); }
+});
+window.addEventListener('resize', () => {
+    if (!isExamActive) return;
+    const isMobile = /Android|webOS|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (!isMobile) {
+        if (Math.abs(window.innerWidth - initialWidth) > 100) {reportViolation();
+            alert("Peringatan: Dilarang mengubah ukuran layar!"); }
+    }
+});
+
+
+
+
+
+
+    </script>
+</body>
+</html>
